@@ -1,0 +1,243 @@
+syntax = "proto3";
+
+package apss.v1;
+
+option go_package = "github.com/invisible-tech/autopilot-security-sensor/pkg/api/v1";
+
+import "google/protobuf/timestamp.proto";
+
+// SecurityEventService handles streaming security events from agents to controller
+service SecurityEventService {
+  // Stream security events from sidecar agent to controller
+  rpc StreamEvents(stream SecurityEvent) returns (stream EventAck);
+  
+  // Register agent with controller
+  rpc RegisterAgent(AgentRegistration) returns (RegistrationResponse);
+  
+  // Heartbeat to maintain connection
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+// Agent registration when sidecar starts
+message AgentRegistration {
+  string agent_id = 1;
+  string pod_name = 2;
+  string pod_namespace = 3;
+  string node_name = 4;
+  repeated string container_ids = 5;
+  map<string, string> labels = 6;
+  google.protobuf.Timestamp start_time = 7;
+}
+
+message RegistrationResponse {
+  bool accepted = 1;
+  string controller_version = 2;
+  AgentConfig config = 3;
+}
+
+// Dynamic agent configuration from controller
+message AgentConfig {
+  int32 event_buffer_size = 1;
+  int32 proc_scan_interval_ms = 2;
+  int32 net_scan_interval_ms = 3;
+  int32 file_watch_interval_ms = 4;
+  repeated string watched_paths = 5;
+  repeated string suspicious_process_names = 6;
+  repeated string suspicious_network_ports = 7;
+  bool enable_dns_monitoring = 8;
+  bool enable_file_integrity = 9;
+}
+
+message HeartbeatRequest {
+  string agent_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  AgentStats stats = 3;
+}
+
+message AgentStats {
+  int64 events_sent = 1;
+  int64 events_dropped = 2;
+  int64 memory_usage_bytes = 3;
+  float cpu_percent = 4;
+}
+
+message HeartbeatResponse {
+  bool ok = 1;
+  AgentConfig updated_config = 2;  // Optional config update
+}
+
+message EventAck {
+  string event_id = 1;
+  bool received = 2;
+}
+
+// Main security event message
+message SecurityEvent {
+  string event_id = 1;
+  string agent_id = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  EventType type = 4;
+  Severity severity = 5;
+  
+  // Source context
+  string pod_name = 6;
+  string pod_namespace = 7;
+  string container_id = 8;
+  string container_name = 9;
+  
+  // Event-specific payload (oneof)
+  oneof payload {
+    ProcessEvent process = 10;
+    NetworkEvent network = 11;
+    FileEvent file = 12;
+    ResourceEvent resource = 13;
+    DNSEvent dns = 14;
+    AuditEvent audit = 15;
+  }
+  
+  // Additional context
+  map<string, string> metadata = 20;
+  repeated string tags = 21;
+  string raw_data = 22;
+}
+
+enum EventType {
+  EVENT_TYPE_UNKNOWN = 0;
+  EVENT_TYPE_PROCESS_START = 1;
+  EVENT_TYPE_PROCESS_EXIT = 2;
+  EVENT_TYPE_NETWORK_CONNECT = 3;
+  EVENT_TYPE_NETWORK_LISTEN = 4;
+  EVENT_TYPE_FILE_CREATE = 5;
+  EVENT_TYPE_FILE_MODIFY = 6;
+  EVENT_TYPE_FILE_DELETE = 7;
+  EVENT_TYPE_FILE_ACCESS = 8;
+  EVENT_TYPE_RESOURCE_ANOMALY = 9;
+  EVENT_TYPE_DNS_QUERY = 10;
+  EVENT_TYPE_K8S_AUDIT = 11;
+  EVENT_TYPE_SUSPICIOUS_ACTIVITY = 12;
+}
+
+enum Severity {
+  SEVERITY_UNKNOWN = 0;
+  SEVERITY_INFO = 1;
+  SEVERITY_LOW = 2;
+  SEVERITY_MEDIUM = 3;
+  SEVERITY_HIGH = 4;
+  SEVERITY_CRITICAL = 5;
+}
+
+// Process execution event
+message ProcessEvent {
+  int32 pid = 1;
+  int32 ppid = 2;
+  string name = 3;
+  string exe_path = 4;
+  repeated string cmdline = 5;
+  string user = 6;
+  int32 uid = 7;
+  google.protobuf.Timestamp start_time = 8;
+  int32 exit_code = 9;  // For exit events
+  
+  // Detection context
+  repeated string suspicious_indicators = 10;
+}
+
+// Network connection event
+message NetworkEvent {
+  string protocol = 1;  // tcp, udp
+  string src_ip = 2;
+  int32 src_port = 3;
+  string dst_ip = 4;
+  int32 dst_port = 5;
+  string state = 6;  // established, listen, etc.
+  int32 pid = 7;
+  string process_name = 8;
+  
+  // Detection context
+  bool is_external = 9;
+  bool is_suspicious_port = 10;
+  string geo_location = 11;
+}
+
+// File system event
+message FileEvent {
+  string path = 1;
+  string operation = 2;  // create, modify, delete, access
+  int32 pid = 3;
+  string process_name = 4;
+  string old_hash = 5;  // For integrity monitoring
+  string new_hash = 6;
+  int64 size_bytes = 7;
+  string permissions = 8;
+}
+
+// Resource usage anomaly
+message ResourceEvent {
+  float cpu_percent = 1;
+  int64 memory_bytes = 2;
+  int64 memory_limit_bytes = 3;
+  float memory_percent = 4;
+  int64 disk_read_bytes = 5;
+  int64 disk_write_bytes = 6;
+  int64 network_rx_bytes = 7;
+  int64 network_tx_bytes = 8;
+  
+  // Anomaly detection
+  string anomaly_type = 9;  // cpu_spike, memory_leak, crypto_mining_pattern
+  float anomaly_score = 10;
+}
+
+// DNS query event (for exfil/C2 detection)
+message DNSEvent {
+  string query_name = 1;
+  string query_type = 2;  // A, AAAA, TXT, etc.
+  repeated string answers = 3;
+  int32 pid = 4;
+  string process_name = 5;
+  
+  // Detection context
+  bool is_suspicious_tld = 6;
+  bool possible_tunneling = 7;
+  float entropy_score = 8;
+}
+
+// Kubernetes audit event
+message AuditEvent {
+  string verb = 1;
+  string resource = 2;
+  string name = 3;
+  string namespace = 4;
+  string user = 5;
+  repeated string groups = 6;
+  string source_ip = 7;
+  string user_agent = 8;
+  int32 response_code = 9;
+  
+  // Detection context
+  repeated string policy_violations = 10;
+}
+
+// Alert generated by the detection engine
+message Alert {
+  string alert_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  Severity severity = 3;
+  string rule_id = 4;
+  string rule_name = 5;
+  string description = 6;
+  
+  // Related events
+  repeated string event_ids = 7;
+  
+  // Context
+  string pod_name = 8;
+  string pod_namespace = 9;
+  string cluster_name = 10;
+  
+  // MITRE ATT&CK mapping
+  string mitre_tactic = 11;
+  string mitre_technique = 12;
+  
+  // Remediation
+  repeated string recommended_actions = 13;
+}

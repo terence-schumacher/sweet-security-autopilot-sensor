@@ -1,0 +1,201 @@
+# Default values for autopilot-security-sensor
+# This is a YAML-formatted file.
+
+# Namespace to deploy into
+namespace: apss-system
+
+# Controller configuration
+controller:
+  replicaCount: 2
+  image:
+    repository: gcr.io/invisible-sre-sandbox/apss-controller
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  # Pod disruption budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8080
+    metricsPort: 8080
+  
+  # Alerting configuration
+  alerting:
+    # Slack webhook for alerts
+    slack:
+      enabled: false
+      webhookUrl: ""
+      channel: "#security-alerts"
+    
+    # PagerDuty integration
+    pagerduty:
+      enabled: false
+      routingKey: ""
+    
+    # Pub/Sub for event streaming
+    pubsub:
+      enabled: false
+      projectId: ""
+      topicId: "apss-events"
+  
+  # Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+# Webhook configuration (sidecar injector)
+webhook:
+  replicaCount: 2
+  image:
+    repository: gcr.io/invisible-sre-sandbox/apss-webhook
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  
+  # TLS certificate configuration
+  # If certManager.enabled is true, cert-manager will be used
+  # Otherwise, provide your own certs
+  certManager:
+    enabled: true
+    issuerRef:
+      name: selfsigned-issuer
+      kind: Issuer
+  
+  # Namespaces to exclude from injection
+  excludeNamespaces:
+    - kube-system
+    - kube-public
+    - apss-system
+    - cert-manager
+    - istio-system
+    - gke-managed-system
+
+# Sidecar agent configuration
+agent:
+  image:
+    repository: gcr.io/invisible-sre-sandbox/apss-agent
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  
+  # Monitoring configuration
+  monitoring:
+    # Process scanning interval
+    procScanIntervalSeconds: 5
+    # Network scanning interval
+    netScanIntervalSeconds: 10
+    # File integrity check interval
+    fileScanIntervalSeconds: 30
+  
+  # Suspicious process patterns (regex)
+  suspiciousProcesses:
+    - "nc|ncat|netcat"
+    - "nmap|masscan"
+    - "xmrig|minerd|cpuminer"
+    - "socat"
+    - "python.*-c.*import"
+    - "perl.*-e.*socket"
+  
+  # Suspicious ports to flag
+  suspiciousPorts:
+    - 4444  # Metasploit default
+    - 5555  # Common reverse shell
+    - 6666  # Common reverse shell
+    - 1337  # Leet port
+    - 31337 # Elite port
+  
+  # Paths to monitor for file integrity
+  watchPaths:
+    - /etc/passwd
+    - /etc/shadow
+    - /etc/sudoers
+    - /root/.ssh
+    - /etc/crontab
+
+# Sweet Security integration
+sweetSecurity:
+  enabled: false
+  # API endpoint
+  apiEndpoint: "https://api.sweet.security"
+  # API key (use secret reference in production)
+  apiKey: ""
+  # Secret containing API key
+  apiKeySecret:
+    name: ""
+    key: "api-key"
+
+# Global settings
+global:
+  # Image pull secrets
+  imagePullSecrets: []
+  
+  # Pod security context (Autopilot-compatible)
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  
+  # Node selector (for standard clusters, not used in Autopilot)
+  nodeSelector: {}
+  
+  # Tolerations
+  tolerations: []
+  
+  # Pod affinity
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: apss-controller
+            topologyKey: kubernetes.io/hostname
+
+# Detection rules configuration
+detectionRules:
+  # Enable/disable specific rules
+  enabled:
+    - APSS-001  # Reverse shell detection
+    - APSS-002  # Cryptominer detection
+    - APSS-003  # Sensitive file modification
+    - APSS-004  # Shell spawn detection
+    - APSS-005  # External database connection
+  
+  # Custom rules (loaded from ConfigMap)
+  customRulesConfigMap: ""
+
+# Audit log processing (requires GKE audit logs)
+auditLogProcessor:
+  enabled: true
+  # Source: pubsub topic with audit logs or direct API
+  source: "pubsub"
+  pubsub:
+    projectId: ""
+    subscriptionId: "gke-audit-logs"

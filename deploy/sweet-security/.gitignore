@@ -1,0 +1,18 @@
+# Cluster-specific configurations
+cluster-config.yaml
+clusters.txt
+.env
+
+# Terraform state
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Temporary files
+*.tmp
+*.log
+
+# Sensitive data
+*secret*
+*key*
+*credential*
