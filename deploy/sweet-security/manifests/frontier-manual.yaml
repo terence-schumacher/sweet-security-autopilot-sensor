@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/name: sweet-frontier
     app.kubernetes.io/managed-by: manual
 data:
-  SWEET_CLUSTER_ID: SWEET_CLUSTER_ID_PLACEHOLDER
+  SWEET_CLUSTER_ID: us-central1-inv-pipelines-08761ab1-gke
 ---
 # Secret for Sweet Frontier
 apiVersion: v1
@@ -22,8 +22,8 @@ metadata:
     app.kubernetes.io/managed-by: manual
 type: Opaque
 data:
-  SWEET_API_KEY: SWEET_API_KEY_PLACEHOLDER
-  SWEET_SECRET: SWEET_SECRET_PLACEHOLDER
+  SWEET_API_KEY: MDI0Y2FlZTctYTBmYy00ODU2LWJlNWUtNTAwNGRjMjY5NjY5
+  SWEET_SECRET: MmRhMWRiNmItM2MwYy00NjYzLTlmZmEtYmI3NTU2YjZmN2Yz
 ---
 # ServiceAccount for Sweet Frontier
 apiVersion: v1

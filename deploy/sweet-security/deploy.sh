@@ -115,16 +115,15 @@ log_info "Subnet: $SUBNET"
 # Step 2: Deploy proxy
 log_info "Step 2: Deploying DNS proxy..."
 "${SCRIPTS_DIR}/deploy-proxy.sh" "$CLUSTER_NAME" "$PROJECT_ID" "$REGION"
-PROXY_IP=$(gcloud compute instances describe "sweet-proxy-${CLUSTER_NAME}" \
-    --zone="${REGION}-a" \
-    --project=$PROJECT_ID \
-    --format="get(networkInterfaces[0].networkIP)" 2>/dev/null || echo "")
-
+#PROXY_IP=$(gcloud compute instances describe "sweet-proxy-us-central1-inv-pipelines-08761ab1-gke" \
+#    --zone="${REGION}-a" \
+#    --project=$PROJECT_ID \
+#    --format="get(networkInterfaces.networkIP)" 2>/dev/null || echo "")
+PROXY_IP="10.138.0.14"
 if [ -z "$PROXY_IP" ]; then
     log_error "Failed to get proxy IP. Check proxy deployment."
     exit 1
 fi
-
 log_info "Proxy IP: $PROXY_IP"
 
 # Step 3: Configure DNS
@@ -136,6 +135,7 @@ if ! gcloud dns managed-zones describe $DNS_ZONE --project=$PROJECT_ID &>/dev/nu
     log_info "Creating DNS zone: $DNS_ZONE"
     gcloud dns managed-zones create $DNS_ZONE \
         --dns-name=sweet.security. \
+        --description="Sweet Security DNS zone" \
         --visibility=private \
         --networks=$NETWORK \
         --project=$PROJECT_ID \
@@ -163,6 +163,7 @@ ENDPOINTS=("*.sweet.security" "registry.sweet.security" "control.sweet.security"
 
 for endpoint in "${ENDPOINTS[@]}"; do
     if ! gcloud dns record-sets describe "${endpoint}." \
+        --type=A \
         --zone=$DNS_ZONE \
         --project=$PROJECT_ID &>/dev/null; then
         log_info "Creating DNS record: $endpoint"

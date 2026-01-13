@@ -63,7 +63,7 @@ else
     --boot-disk-size=20GB \
     --boot-disk-type=pd-balanced \
     --tags=sweet-proxy \
-    --metadata-from-file=startup-script=proxy-startup-script.sh \
+    --metadata-from-file=startup-script=${BASH_SOURCE%/*}/proxy-startup-script.sh \
     --no-service-account \
     --no-scopes \
     --quiet
