@@ -30,9 +30,16 @@ echo "Network: $NETWORK"
 echo "Subnet: $SUBNET"
 
 # Get subnet region and zone
-SUBNET_REGION=$(gcloud compute networks subnets describe $SUBNET \
-  --project=$PROJECT_ID \
-  --format="get(region)" 2>/dev/null | sed 's|.*/regions/||')
+# Handle both full path (projects/.../regions/.../subnetworks/...) and subnet name
+if [[ "$SUBNET" == *"/regions/"* ]]; then
+    # Extract region from full path
+    SUBNET_REGION=$(echo "$SUBNET" | sed 's|.*/regions/\([^/]*\)/.*|\1|')
+else
+    # Get region from subnet description
+    SUBNET_REGION=$(gcloud compute networks subnets describe "$SUBNET" \
+        --project=$PROJECT_ID \
+        --format="get(region)" 2>/dev/null | sed 's|.*/regions/||')
+fi
 
 ZONE="${SUBNET_REGION}-a"  # Use first zone in region
 PROXY_NAME="sweet-proxy-${CLUSTER_NAME}"

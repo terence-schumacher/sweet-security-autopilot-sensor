@@ -115,13 +115,31 @@ log_info "Subnet: $SUBNET"
 # Step 2: Deploy proxy
 log_info "Step 2: Deploying DNS proxy..."
 "${SCRIPTS_DIR}/deploy-proxy.sh" "$CLUSTER_NAME" "$PROJECT_ID" "$REGION"
-#PROXY_IP=$(gcloud compute instances describe "sweet-proxy-us-central1-inv-pipelines-08761ab1-gke" \
-#    --zone="${REGION}-a" \
-#    --project=$PROJECT_ID \
-#    --format="get(networkInterfaces.networkIP)" 2>/dev/null || echo "")
-PROXY_IP="10.138.0.14"
+
+# Get the zone from subnet region (same logic as deploy-proxy.sh)
+# Handle both full path (projects/.../regions/.../subnetworks/...) and subnet name
+if [[ "$SUBNET" == *"/regions/"* ]]; then
+    # Extract region from full path
+    SUBNET_REGION=$(echo "$SUBNET" | sed 's|.*/regions/\([^/]*\)/.*|\1|')
+else
+    # Get region from subnet description
+    SUBNET_REGION=$(gcloud compute networks subnets describe "$SUBNET" \
+        --project=$PROJECT_ID \
+        --format="get(region)" 2>/dev/null | sed 's|.*/regions/||')
+fi
+
+ZONE="${SUBNET_REGION}-a"
+PROXY_INSTANCE_NAME="sweet-proxy-${CLUSTER_NAME}"
+
+log_info "Retrieving proxy IP from zone: $ZONE"
+PROXY_IP=$(gcloud compute instances describe "${PROXY_INSTANCE_NAME}" \
+    --zone="$ZONE" \
+    --project=$PROJECT_ID \
+    --format="get(networkInterfaces[0].networkIP)" 2>/dev/null || echo "")
+
 if [ -z "$PROXY_IP" ]; then
     log_error "Failed to get proxy IP. Check proxy deployment."
+    log_error "Tried zone: $ZONE for instance: $PROXY_INSTANCE_NAME"
     exit 1
 fi
 log_info "Proxy IP: $PROXY_IP"
