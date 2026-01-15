@@ -112,110 +112,45 @@ fi
 log_info "Network: $NETWORK"
 log_info "Subnet: $SUBNET"
 
-# Step 2: Deploy proxy
-log_info "Step 2: Deploying DNS proxy..."
-"${SCRIPTS_DIR}/deploy-proxy.sh" "$CLUSTER_NAME" "$PROJECT_ID" "$REGION"
+# Step 2: Deploy Cloud NAT
+log_info "Step 2: Deploying Cloud NAT..."
+"${SCRIPTS_DIR}/deploy-nat.sh" "$CLUSTER_NAME" "$PROJECT_ID" "$REGION"
 
-# Get the zone from subnet region (same logic as deploy-proxy.sh)
-# Handle both full path (projects/.../regions/.../subnetworks/...) and subnet name
+# Get subnet region for verification
 if [[ "$SUBNET" == *"/regions/"* ]]; then
-    # Extract region from full path
     SUBNET_REGION=$(echo "$SUBNET" | sed 's|.*/regions/\([^/]*\)/.*|\1|')
 else
-    # Get region from subnet description
     SUBNET_REGION=$(gcloud compute networks subnets describe "$SUBNET" \
         --project=$PROJECT_ID \
         --format="get(region)" 2>/dev/null | sed 's|.*/regions/||')
 fi
 
-ZONE="${SUBNET_REGION}-a"
-PROXY_INSTANCE_NAME="sweet-proxy-${CLUSTER_NAME}"
+# Verify Cloud NAT deployment
+log_info "Verifying Cloud NAT deployment..."
+ROUTER_NAME="sweet-nat-router-${SUBNET_REGION}"
+NAT_NAME="sweet-nat-${SUBNET_REGION}"
 
-log_info "Retrieving proxy IP from zone: $ZONE"
-PROXY_IP=$(gcloud compute instances describe "${PROXY_INSTANCE_NAME}" \
-    --zone="$ZONE" \
-    --project=$PROJECT_ID \
-    --format="get(networkInterfaces[0].networkIP)" 2>/dev/null || echo "")
-
-if [ -z "$PROXY_IP" ]; then
-    log_error "Failed to get proxy IP. Check proxy deployment."
-    log_error "Tried zone: $ZONE for instance: $PROXY_INSTANCE_NAME"
-    exit 1
-fi
-log_info "Proxy IP: $PROXY_IP"
-
-# Step 3: Configure DNS
-log_info "Step 3: Configuring Cloud DNS..."
-
-# Check if DNS zone exists, create if not
-DNS_ZONE="sweet-security-zone"
-if ! gcloud dns managed-zones describe $DNS_ZONE --project=$PROJECT_ID &>/dev/null; then
-    log_info "Creating DNS zone: $DNS_ZONE"
-    gcloud dns managed-zones create $DNS_ZONE \
-        --dns-name=sweet.security. \
-        --description="Sweet Security DNS zone" \
-        --visibility=private \
-        --networks=$NETWORK \
-        --project=$PROJECT_ID \
-        --quiet
+if gcloud compute routers nats describe "$NAT_NAME" \
+    --router="$ROUTER_NAME" \
+    --region="$SUBNET_REGION" \
+    --project="$PROJECT_ID" &>/dev/null; then
+    log_info "Cloud NAT verified: $NAT_NAME ✓"
 else
-    log_info "DNS zone exists, updating networks..."
-    # Add network to existing zone
-    EXISTING_NETWORKS=$(gcloud dns managed-zones describe $DNS_ZONE \
-        --project=$PROJECT_ID \
-        --format="get(privateVisibilityConfig.networks[].networkUrl)" | tr '\n' ',' | sed 's/,$//')
-    
-    if [[ ! "$EXISTING_NETWORKS" == *"$NETWORK"* ]]; then
-        gcloud dns managed-zones update $DNS_ZONE \
-            --project=$PROJECT_ID \
-            --networks="${EXISTING_NETWORKS},${NETWORK}" \
-            --quiet
-    fi
+    log_warn "Cloud NAT verification failed. Continuing anyway..."
 fi
 
-# Create DNS records
-log_info "Creating DNS records..."
-ENDPOINTS=("*.sweet.security" "registry.sweet.security" "control.sweet.security" \
-           "logger.sweet.security" "receiver.sweet.security" "vincent.sweet.security" \
-           "api.sweet.security" "prio.sweet.security")
-
-for endpoint in "${ENDPOINTS[@]}"; do
-    if ! gcloud dns record-sets describe "${endpoint}." \
-        --type=A \
-        --zone=$DNS_ZONE \
-        --project=$PROJECT_ID &>/dev/null; then
-        log_info "Creating DNS record: $endpoint"
-        gcloud dns record-sets create "${endpoint}." \
-            --zone=$DNS_ZONE \
-            --type=A \
-            --rrdatas=$PROXY_IP \
-            --ttl=300 \
-            --project=$PROJECT_ID \
-            --quiet
-    else
-        log_info "Updating DNS record: $endpoint"
-        gcloud dns record-sets update "${endpoint}." \
-            --zone=$DNS_ZONE \
-            --type=A \
-            --rrdatas=$PROXY_IP \
-            --ttl=300 \
-            --project=$PROJECT_ID \
-            --quiet
-    fi
-done
-
-# Step 4: Connect to cluster
-log_info "Step 4: Connecting to cluster..."
+# Step 3: Connect to cluster
+log_info "Step 3: Connecting to cluster..."
 gcloud container clusters get-credentials $CLUSTER_NAME \
     --region=$REGION \
     --project=$PROJECT_ID
 
-# Step 5: Create namespace
-log_info "Step 5: Creating namespace..."
+# Step 4: Create namespace
+log_info "Step 4: Creating namespace..."
 kubectl create namespace sweet --dry-run=client -o yaml | kubectl apply -f -
 
-# Step 6: Install Sweet Operator
-log_info "Step 6: Installing Sweet Operator..."
+# Step 5: Install Sweet Operator
+log_info "Step 5: Installing Sweet Operator..."
 helm upgrade --install sweet-operator oci://registry.sweet.security/helm/operatorchart \
     --namespace sweet \
     --set sweet.apiKey=$API_KEY \
@@ -226,8 +161,8 @@ helm upgrade --install sweet-operator oci://registry.sweet.security/helm/operato
     --set frontier.extraValues.priorityClass.value=1000 \
     --wait --timeout=5m || log_warn "Operator installation may need manual intervention"
 
-# Step 7: Install Sweet Scanner
-log_info "Step 7: Installing Sweet Scanner..."
+# Step 6: Install Sweet Scanner
+log_info "Step 6: Installing Sweet Scanner..."
 helm upgrade --install sweet-scanner oci://registry.sweet.security/helm/scannerchart \
     --namespace sweet \
     --set sweet.apiKey=$API_KEY \
@@ -235,8 +170,8 @@ helm upgrade --install sweet-scanner oci://registry.sweet.security/helm/scannerc
     --set sweet.clusterId=$CLUSTER_ID \
     --wait --timeout=5m || log_warn "Scanner installation may need manual intervention"
 
-# Step 8: Deploy Frontier Informer (Autopilot-compatible)
-log_info "Step 8: Deploying Frontier Informer..."
+# Step 7: Deploy Frontier Informer (Autopilot-compatible)
+log_info "Step 7: Deploying Frontier Informer..."
 # Update manifest with credentials
 TEMP_MANIFEST=$(mktemp)
 
@@ -258,22 +193,49 @@ sed -e "s|SWEET_CLUSTER_ID_PLACEHOLDER|$CLUSTER_ID|g" \
 kubectl apply -f "$TEMP_MANIFEST"
 rm -f "$TEMP_MANIFEST"
 
-# Step 9: Wait for DNS propagation
-log_info "Step 9: Waiting for DNS propagation (30 seconds)..."
-sleep 30
+# Step 8: Verify deployment
+log_info "Step 8: Verifying deployment..."
 
-# Step 10: Verify and restart if needed
-log_info "Step 10: Verifying deployment..."
-log_info "Checking DNS resolution..."
-kubectl run test-dns-$(date +%s) --image=busybox --rm -i --restart=Never -n sweet -- \
-    nslookup registry.sweet.security 2>&1 | grep -q "10.0" && \
-    log_info "DNS resolution working ✓" || \
-    log_warn "DNS may not be fully propagated yet"
+# Verify Cloud NAT status
+log_info "Checking Cloud NAT status..."
+if gcloud compute routers describe "$ROUTER_NAME" \
+    --region="$SUBNET_REGION" \
+    --project="$PROJECT_ID" &>/dev/null; then
+    log_info "Cloud Router exists: $ROUTER_NAME ✓"
+    
+    if gcloud compute routers nats list \
+        --router="$ROUTER_NAME" \
+        --region="$SUBNET_REGION" \
+        --project="$PROJECT_ID" \
+        --format="get(name)" 2>/dev/null | grep -q "$NAT_NAME"; then
+        log_info "Cloud NAT gateway exists: $NAT_NAME ✓"
+    else
+        log_warn "Cloud NAT gateway not found. Check deployment."
+    fi
+else
+    log_warn "Cloud Router not found. Check deployment."
+fi
 
-log_info "Restarting deployments to pick up DNS changes..."
-kubectl rollout restart deployment/sweet-operator -n sweet 2>/dev/null || true
-kubectl rollout restart deployment/sweet-scanner -n sweet 2>/dev/null || true
-kubectl rollout restart deployment/sweet-frontier-informer -n sweet 2>/dev/null || true
+# Test connectivity from cluster (if kubectl is available)
+log_info "Testing connectivity to Sweet Security..."
+if kubectl get namespace sweet &>/dev/null; then
+    log_info "Running connectivity test..."
+    if kubectl run test-connectivity-$(date +%s) \
+        --image=curlimages/curl \
+        --rm -i --restart=Never \
+        -n sweet \
+        -- curl -s --connect-timeout 5 -o /dev/null -w "%{http_code}" https://control.sweet.security 2>/dev/null | grep -q "200\|301\|302\|401\|403"; then
+        log_info "Connectivity test passed ✓"
+    else
+        log_warn "Connectivity test failed. Check Cloud NAT configuration."
+        log_warn "You can test manually: kubectl run test-curl --image=curlimages/curl --rm -i --restart=Never -- curl -v https://control.sweet.security"
+    fi
+else
+    log_info "Skipping connectivity test (namespace not ready yet)"
+fi
+
+log_info "Cloud NAT allows direct access to Sweet Security endpoints."
+log_info "No DNS configuration needed - clusters can access external IPs directly."
 
 # Final status
 log_info ""
@@ -283,19 +245,24 @@ log_info "=========================================="
 log_info "Cluster: $CLUSTER_NAME"
 log_info "Project: $PROJECT_ID"
 log_info "Region: $REGION"
-log_info "Proxy IP: $PROXY_IP"
-log_info "DNS Zone: $DNS_ZONE"
+log_info "Network: $NETWORK"
 log_info ""
 log_info "Components deployed:"
+log_info "  - Cloud NAT Gateway: $NAT_NAME (region: $SUBNET_REGION)"
+log_info "  - Cloud Router: $ROUTER_NAME"
 log_info "  - sweet-operator"
 log_info "  - sweet-scanner"
 log_info "  - sweet-frontier-informer"
 log_info ""
 log_info "Next steps:"
-log_info "  1. Wait 5-10 minutes for DNS propagation"
-log_info "  2. Check pod status: kubectl get pods -n sweet"
-log_info "  3. Verify in GCP Console: Kubernetes Engine > Workloads"
+log_info "  1. Check pod status: kubectl get pods -n sweet"
+log_info "  2. Verify in GCP Console: Kubernetes Engine > Workloads"
+log_info "  3. Verify Cloud NAT: gcloud compute routers nats list --router=$ROUTER_NAME --region=$SUBNET_REGION --project=$PROJECT_ID"
+log_info "  4. Test connectivity: kubectl run test-curl --image=curlimages/curl --rm -i --restart=Never -- curl -v https://control.sweet.security"
 log_info ""
-log_info "If pods are in ImagePullBackOff, wait for DNS and restart:"
-log_info "  kubectl rollout restart deployment -n sweet"
+log_info "Troubleshooting:"
+log_info "  - Check NAT logs: gcloud logging read \"resource.type=cloud_nat\" --limit=50 --project=$PROJECT_ID"
+log_info "  - Verify router: gcloud compute routers describe $ROUTER_NAME --region=$SUBNET_REGION --project=$PROJECT_ID"
+log_info ""
+log_info "Note: No DNS configuration needed - Cloud NAT handles outbound traffic"
 log_info "=========================================="

@@ -41,14 +41,14 @@ else
         --format="get(region)" 2>/dev/null | sed 's|.*/regions/||')
 fi
 
-ZONE="${SUBNET_REGION}-a"  # Use first zone in region
+ZONE="${REGION}-a"  # Use first zone in region
 PROXY_NAME="sweet-proxy-${CLUSTER_NAME}"
 
 echo "Zone: $ZONE"
 echo "Proxy name: $PROXY_NAME"
 
 # Check if proxy already exists
-if gcloud compute instances describe $PROXY_NAME --zone=$ZONE --project=$PROJECT_ID &>/dev/null; then
+if gcloud compute instances describe "$PROXY_NAME" --zone="$ZONE" --project="$PROJECT_ID" &>/dev/null; then
   echo "Proxy $PROXY_NAME already exists. Getting IP..."
   PROXY_IP=$(gcloud compute instances describe $PROXY_NAME \
     --zone=$ZONE \

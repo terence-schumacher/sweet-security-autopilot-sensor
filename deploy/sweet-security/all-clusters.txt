@@ -1,0 +1,49 @@
+# GKE Clusters for Sweet Security Deployment
+# Format: CLUSTER_NAME PROJECT_ID REGION
+# Generated: Mon Jan 12 19:08:35 PST 2026
+
+# animal-welfare-qa invisible-animal-welfare us-west1
+# animal-welfare-staging invisible-animal-welfare us-west1
+# atomic-production invisible-atomic us-west1
+# atomic-staging invisible-atomic us-west1
+# client-analytics-production invisible-client-analytics us-west1
+# client-analytics-qa invisible-client-analytics us-west1
+# client-analytics-staging invisible-client-analytics us-west1
+# client-control-center-production client-control-center us-west1
+# client-control-center-staging client-control-center us-west1
+# data-platform invisible-data-platform us-west1
+demo-management-production invisible-demo-management us-west1
+demo-management-staging invisible-demo-management us-west1
+doc-parsing-production invisible-doc-parsing us-west1
+encord-cluster invisible-encord us-west1
+finance-production invisible-finance-prod us-west1
+finance-staging invisible-finance-nonprod us-west1
+gcp-n-stg-us-east1-invisible invisible-data-platform us-east1
+invisible-backstage-approd invisible-backstage us-west1
+invisible-prod-cluster invisible-infra us-west1
+invisible-staging-vellum-cluster invisible-vellum us-west1
+lightbeam-cluster invisible-lightbeam us-west1
+marketplace-production invisible-workforce-one us-west1
+marketplace-qa invisible-workforce-one us-west1
+marketplace-staging invisible-workforce-one us-west1
+model-registry-prod invisible-computer-vision us-central1
+model-serving-prod invisible-computer-vision us-central1
+paved-path-dev invisible-paved-path us-west1
+paved-path-production invisible-paved-path us-west1
+sre-771-development invisible-sre-sandbox us-west1
+sre-771-staging invisible-sre-sandbox us-west1
+# sre-onboarding invisible-sre-sandbox us-west1
+stage-cluster invisible-stage us-west1
+test-cluster invisible-flexible-deployments us-west1
+tools-cluster invisible-tools us-west1
+us-central1-inv-pipelines-08761ab1-gke invisible-infra us-central1
+us-central1-test-composer-a-eb03b270-gke invisible-infra us-central1
+vellum-prod-cluster invisible-vellum us-west1
+watchtower watchtower-455815 us-west1
+watchtower-production watchtower-455815 us-west1
+watchtower-staging watchtower-455815 us-west1
+
+Deploying Cloud NAT for cluster: client-analytics-staging in project: invisible-client-analytics
+Deploying Cloud NAT for cluster: client-analytics-production in project: invisible-client-analytics
+Deploying Cloud NAT for cluster: atomic-staging in project: invisible-atomic
+Deploying Cloud NAT for cluster: client-control-center-staging in project: client-control-center
