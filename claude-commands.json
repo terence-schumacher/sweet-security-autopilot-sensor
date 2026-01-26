@@ -1,0 +1,163 @@
+{
+  "commands": {
+    "dev-setup": {
+      "description": "Initialize development environment for a new project",
+      "category": "development",
+      "agents": ["infra-code-linter"],
+      "steps": [
+        "Check project structure and dependencies",
+        "Install dependencies if needed",
+        "Run linting and formatting",
+        "Set up environment files"
+      ]
+    },
+    "code-review": {
+      "description": "Comprehensive code review of current changes",
+      "category": "development",
+      "agents": ["code-refactor-cleanup", "security-performance-auditor"],
+      "steps": [
+        "Analyze git diff",
+        "Run code quality checks",
+        "Security vulnerability scan",
+        "Suggest improvements"
+      ]
+    },
+    "test-fix": {
+      "description": "Run tests and fix any failures",
+      "category": "development",
+      "agents": ["code-refactor-cleanup"],
+      "steps": [
+        "Identify test framework",
+        "Execute test suite",
+        "Analyze failures",
+        "Implement fixes"
+      ]
+    },
+    "deploy-prep": {
+      "description": "Prepare code for deployment",
+      "category": "deployment",
+      "agents": ["infra-code-linter", "security-performance-auditor"],
+      "steps": [
+        "Run all quality checks",
+        "Execute full test suite",
+        "Security scan",
+        "Create deployment checklist"
+      ]
+    },
+    "health-check": {
+      "description": "Comprehensive system health assessment",
+      "category": "sre",
+      "agents": ["security-performance-auditor"],
+      "steps": [
+        "Check service status",
+        "Review error logs",
+        "Analyze resource usage",
+        "Check monitoring alerts"
+      ]
+    },
+    "incident-response": {
+      "description": "Structured incident response workflow",
+      "category": "sre",
+      "agents": ["security-performance-auditor"],
+      "steps": [
+        "Assess impact and severity",
+        "Check system metrics",
+        "Identify root causes",
+        "Document findings"
+      ]
+    },
+    "performance-audit": {
+      "description": "Performance analysis and optimization",
+      "category": "sre",
+      "agents": ["security-performance-auditor"],
+      "steps": [
+        "Analyze application metrics",
+        "Check database performance",
+        "Review API response times",
+        "Identify bottlenecks"
+      ]
+    },
+    "infra-validate": {
+      "description": "Validate infrastructure code and configurations",
+      "category": "infrastructure",
+      "agents": ["infra-code-linter", "security-performance-auditor"],
+      "steps": [
+        "Lint Terraform and K8s manifests",
+        "Check security configurations",
+        "Validate resource limits",
+        "Review compliance"
+      ]
+    },
+    "security-scan": {
+      "description": "Comprehensive security assessment",
+      "category": "security",
+      "agents": ["security-performance-auditor"],
+      "steps": [
+        "Scan for vulnerabilities",
+        "Check dependency security",
+        "Review authentication",
+        "Analyze secrets management"
+      ]
+    },
+    "git-cleanup": {
+      "description": "Clean up git repository and history",
+      "category": "git",
+      "agents": ["git-ops-expert"],
+      "steps": [
+        "Remove merged branches",
+        "Clean commit history",
+        "Optimize repository",
+        "Update branch protection"
+      ]
+    },
+    "k8s-debug": {
+      "description": "Debug Kubernetes deployment issues",
+      "category": "kubernetes",
+      "agents": ["infra-code-linter", "security-performance-auditor"],
+      "steps": [
+        "Check pod status and logs",
+        "Review resource usage",
+        "Validate configurations",
+        "Analyze events"
+      ]
+    },
+    "emergency-debug": {
+      "description": "Fast-track debugging for production issues",
+      "category": "emergency",
+      "agents": ["security-performance-auditor"],
+      "priority": "high",
+      "steps": [
+        "Immediate status check",
+        "Error log analysis",
+        "Performance metrics",
+        "Mitigation steps"
+      ]
+    }
+  },
+  "agent_usage": {
+    "code-refactor-cleanup": [
+      "After feature implementation",
+      "Before PR merge",
+      "Code quality improvements",
+      "Removing duplication"
+    ],
+    "security-performance-auditor": [
+      "Regular security scans",
+      "After auth module changes",
+      "Performance issues",
+      "Memory leak detection"
+    ],
+    "infra-code-linter": [
+      "After Terraform changes",
+      "K8s manifest updates",
+      "Docker file modifications",
+      "Config file validation"
+    ],
+    "git-ops-expert": [
+      "Complex merge conflicts",
+      "Repository cleanup",
+      "Branch management",
+      "History rewriting"
+    ]
+  }
+}

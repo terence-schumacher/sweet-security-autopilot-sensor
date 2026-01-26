@@ -1,0 +1,165 @@
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+# Define variables for GKE Autopilot
+variable "project_id" {
+  description = "GCP Project ID"
+  type        = string
+}
+
+variable "region" {
+  description = "GCP Region"
+  type        = string
+  default     = "us-central1"
+}
+
+variable "cluster_name" {
+  description = "GKE Autopilot Cluster Name"
+  type        = string
+  default     = "sweet-security-cluster"
+}
+
+variable "network_name" {
+  description = "VPC Network Name (must exist or be created separately)"
+  type        = string
+}
+
+variable "subnet_name" {
+  description = "Subnet Name (must exist or be created separately)"
+  type        = string
+}
+
+# Enable required APIs
+resource "google_project_service" "required_apis" {
+  for_each = toset([
+    "container.googleapis.com",
+    "dns.googleapis.com",
+    "compute.googleapis.com"
+  ])
+
+  project = var.project_id
+  service = each.value
+
+  disable_on_destroy = false
+}
+
+# Create GKE Autopilot Cluster
+resource "google_container_cluster" "sweet_security" {
+  name     = var.cluster_name
+  location = var.region
+  project  = var.project_id
+
+  # Enable Autopilot
+  enable_autopilot = true
+
+  # Network configuration
+  network    = var.network_name
+  subnetwork = var.subnet_name
+
+  # Private cluster configuration (recommended for security)
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false # Set to true for fully private cluster
+    master_ipv4_cidr_block  = "172.16.0.0/28"
+  }
+
+  # IP allocation policy
+  ip_allocation_policy {
+    cluster_secondary_range_name  = "pods"
+    services_secondary_range_name = "services"
+  }
+
+  # Master authorized networks (optional - for access control)
+  # master_authorized_networks_config {
+  #   cidr_blocks {
+  #     cidr_block   = "0.0.0.0/0"
+  #     display_name = "All"
+  #   }
+  # }
+
+  # Release channel for automatic upgrades
+  release_channel {
+    channel = "REGULAR"
+  }
+
+  # Workload Identity (recommended for GKE)
+  workload_identity_config {
+    workload_pool = "${var.project_id}.svc.id.goog"
+  }
+
+  depends_on = [
+    google_project_service.required_apis
+  ]
+}
+
+# Create a Cloud DNS Private Zone
+resource "google_dns_managed_zone" "sweet_security" {
+  name        = "sweet-security-zone"
+  dns_name    = "sweet.security."
+  description = "Private DNS zone for Sweet Security"
+  project     = var.project_id
+
+  visibility = "private"
+
+  private_visibility_config {
+    networks {
+      network_url = "projects/${var.project_id}/global/networks/${var.network_name}"
+    }
+  }
+
+  depends_on = [
+    google_project_service.required_apis
+  ]
+}
+
+# Get the GKE cluster endpoint to create DNS record
+# Note: For GKE Autopilot, you'll need to get the service IP after deployment
+# This is a placeholder - you'll need to update the IP after deploying the proxy service
+resource "google_dns_record_set" "sweet_security_wildcard" {
+  name         = "*.sweet.security."
+  managed_zone = google_dns_managed_zone.sweet_security.name
+  type         = "A"
+  ttl          = 300
+  project      = var.project_id
+
+  # This IP should be updated after deploying the Kubernetes service
+  # You can get it with: kubectl get svc sweet-proxy -o jsonpath='{.spec.clusterIP}'
+  rrdatas = ["10.0.0.0"] # Placeholder - update after deployment
+}
+
+# Outputs
+output "cluster_name" {
+  description = "Name of the GKE Autopilot cluster"
+  value       = google_container_cluster.sweet_security.name
+}
+
+output "cluster_endpoint" {
+  description = "Endpoint for the GKE cluster"
+  value       = google_container_cluster.sweet_security.endpoint
+}
+
+output "cluster_location" {
+  description = "Location of the GKE cluster"
+  value       = google_container_cluster.sweet_security.location
+}
+
+output "dns_zone_name" {
+  description = "Name of the DNS zone"
+  value       = google_dns_managed_zone.sweet_security.name
+}
+
+output "kubectl_command" {
+  description = "Command to configure kubectl"
+  value       = "gcloud container clusters get-credentials ${google_container_cluster.sweet_security.name} --region ${google_container_cluster.sweet_security.location} --project ${var.project_id}"
+}

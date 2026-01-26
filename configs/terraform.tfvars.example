@@ -1,0 +1,17 @@
+# GCP Project Configuration
+project_id = "invisible-sre-sandbox"
+
+# Region and Zone
+# Cluster is regional (us-west1), but GCE VM instances need a specific zone
+# You can find the region by running:
+# gcloud container clusters describe sre-onboarding --region=us-west1 --format="get(location)"
+region = "us-west1"
+zone   = "us-west1-a" # Specific zone required for GCE VM instances
+
+# Network Configuration (from cluster networking details)
+network_name = "sre-sandbox-private-onboarding"
+subnet_name  = "sre-sandbox-private-onboarding-subnet"
+
+# GCE Instance Configuration (for gcp-proxy.tf)
+# Using x86 image since ARM (t2a) machine types are not available in us-west1
+machine_image = "ubuntu-os-cloud/ubuntu-2204-lts"

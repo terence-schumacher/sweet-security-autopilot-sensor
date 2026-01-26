@@ -1,0 +1,337 @@
+---
+# ConfigMap for Sweet Frontier
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sweet-frontier
+  namespace: sweet
+  labels:
+    app.kubernetes.io/name: sweet-frontier
+    app.kubernetes.io/managed-by: manual
+data:
+  SWEET_CLUSTER_ID: us-central1-inv-pipelines-08761ab1-gke
+---
+# Secret for Sweet Frontier
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sweet-frontier
+  namespace: sweet
+  labels:
+    app.kubernetes.io/name: sweet-frontier
+    app.kubernetes.io/managed-by: manual
+type: Opaque
+data:
+  SWEET_API_KEY: MDI0Y2FlZTctYTBmYy00ODU2LWJlNWUtNTAwNGRjMjY5NjY5
+  SWEET_SECRET: MmRhMWRiNmItM2MwYy00NjYzLTlmZmEtYmI3NTU2YjZmN2Yz
+---
+# ServiceAccount for Sweet Frontier
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sweet-frontier
+  namespace: sweet
+  labels:
+    app.kubernetes.io/name: sweet-frontier
+    app.kubernetes.io/managed-by: manual
+---
+# ClusterRole for Sweet Frontier
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sweet-frontier
+  labels:
+    app.kubernetes.io/name: sweet-frontier
+    app.kubernetes.io/managed-by: manual
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+      - namespaces
+      - pods
+      - services
+      - nodes/metrics
+      - configmaps
+      - serviceaccounts
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "apps"
+    resources:
+      - deployments
+      - daemonsets
+      - statefulsets
+      - replicasets
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "batch"
+    resources:
+      - jobs
+      - cronjobs
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "external-secrets.io"
+    resources:
+      - externalsecrets
+      - pushsecrets
+      - secretstores
+      - clusterexternalsecrets
+      - clustersecretstores
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "secrets-store.csi.x-k8s.io"
+    resources:
+      - secretproviderclasses
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "rbac.authorization.k8s.io"
+    resources:
+      - clusterroles
+      - clusterrolebindings
+      - roles
+      - rolebindings
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "networking.k8s.io"
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "argoproj.io"
+    resources:
+      - rollouts
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "keda.sh"
+    resources:
+      - scaledjobs
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "gateway.networking.k8s.io"
+    resources:
+      - httproutes
+      - gateways
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - "networking.istio.io"
+    resources:
+      - virtualservices
+      - gateways
+    verbs:
+      - get
+      - watch
+      - list
+---
+# ClusterRoleBinding for Sweet Frontier
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sweet-frontier
+  labels:
+    app.kubernetes.io/name: sweet-frontier
+    app.kubernetes.io/managed-by: manual
+subjects:
+  - kind: ServiceAccount
+    name: sweet-frontier
+    namespace: sweet
+roleRef:
+  kind: ClusterRole
+  name: sweet-frontier
+  apiGroup: rbac.authorization.k8s.io
+---
+# Deployment for Sweet Frontier Informer (Autopilot-compatible, no sensor)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sweet-frontier-informer
+  namespace: sweet
+  labels:
+    app.kubernetes.io/name: sweet-informer
+    app.kubernetes.io/component: frontier
+    app.kubernetes.io/part-of: sweet
+    app.kubernetes.io/managed-by: manual
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sweet-informer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sweet-informer
+        app.kubernetes.io/component: frontier
+        app.kubernetes.io/part-of: sweet
+      annotations:
+        app.kubernetes.io/name: informer
+        app.kubernetes.io/component: frontier
+        app.kubernetes.io/part-of: sweet
+    spec:
+      serviceAccountName: sweet-frontier
+      containers:
+        - name: informer
+          command:
+            - /sweet/informer
+          args:
+            - "--refresh.interval=15min"
+            - "--refresh.pageSize=15"
+            - --watch={"group":"","kinds":["Pod","Namespace","Node","Service","ConfigMap","ServiceAccount"]}
+            - --watch={"group":"apps","kinds":["Deployment","StatefulSet","ReplicaSet","DaemonSet"]}
+            - --watch={"group":"batch","kinds":["Job","CronJob"]}
+            - --watch={"group":"external-secrets.io","kinds":["ExternalSecret","PushSecret","SecretStore","ClusterExternalSecret","ClusterSecretStore"]}
+            - --watch={"group":"secrets-store.csi.x-k8s.io","kinds":["SecretProviderClass"]}
+            - --watch={"group":"rbac.authorization.k8s.io","kinds":["ClusterRole","ClusterRoleBinding","Role","RoleBinding"]}
+            - --watch={"group":"networking.k8s.io","kinds":["Ingress","NetworkPolicy"]}
+            - --watch={"group":"argoproj.io","kinds":["Rollout"]}
+            - --watch={"group":"keda.sh","kinds":["ScaledJob"]}
+            - --watch={"group":"gateway.networking.k8s.io","kinds":["HTTPRoute","Gateway"]}
+            - --watch={"group":"networking.istio.io","kinds":["VirtualService","Gateway"]}
+          image: registry.sweet.security/informer:f594ddf99e46d9f69344e96c3f737347934bff03
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: sweet-frontier
+            - secretRef:
+                name: sweet-frontier
+          env:
+            - name: PORT
+              value: "8080"
+            - name: RUST_LOG
+              value: info
+            - name: STDOUT_RUST_LOG
+              value: "off"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: SWEET_RECEIVER_URL
+              value: https://receiver.sweet.security
+            - name: SWEET_LOG_DIR
+              value: "/var/log/sweet"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          ports:
+            - name: informer
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            limits:
+              cpu: "1500m"
+              memory: 400Mi
+            requests:
+              cpu: 5m
+              memory: 200Mi
+          volumeMounts:
+            - mountPath: /var/log/sweet
+              name: sweet-logs
+          # Autopilot-compatible security context
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+        - name: bitbox
+          command:
+            - /sweet/bitbox
+          args:
+            - --log-path=/var/log/sweet
+            - "--log-destination-url=https://logger.sweet.security"
+            - "--metric-source-url=http://127.0.0.1:8080/metrics"
+            - "--metric-destination-url=https://vincent.sweet.security/v1/scrape"
+            - --collect-self-metrics-interval=1min
+            - --collect-url-metrics-interval=1min
+            - --log-read-interval=15s
+            - --poster-gzip
+            - --use-inotify
+            - --log-pass-ratio=1.0
+          image: registry.sweet.security/bitbox:2fceb477fb90ff3febbed42fe39a9af0ca71caa8
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: "1500m"
+              memory: 75Mi
+            requests:
+              cpu: 5m
+              memory: 50Mi
+          volumeMounts:
+            - mountPath: /var/log/sweet
+              name: sweet-logs
+          envFrom:
+            - configMapRef:
+                name: sweet-frontier
+            - secretRef:
+                name: sweet-frontier
+          env:
+            - name: RUST_LOG
+              value: info
+            - name: STDOUT_RUST_LOG
+              value: "off"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+          # Autopilot-compatible security context
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: sweet-logs
+          emptyDir: {}

@@ -1,0 +1,27 @@
+# Sweet Security Cluster Configuration Template
+# Copy this file to cluster-config.yaml and fill in your values
+# Usage: ./deploy.sh will read from this file if present
+
+cluster:
+  name: "sre-771-staging"           # GKE cluster name
+  project: "invisible-sre-sandbox"   # GCP project ID
+  region: "us-west1"                 # GCP region
+
+# Sweet Security API Credentials
+# These can also be provided via environment variables:
+#   SWEET_API_KEY, SWEET_SECRET, SWEET_CLUSTER_ID
+sweet:
+  apiKey: "your-api-key-here"
+  secret: "your-secret-here"
+  clusterId: "your-cluster-id-here"
+
+# Proxy Configuration (optional - will be auto-detected)
+proxy:
+  # If you want to use an existing proxy, specify:
+  # ip: "10.0.30.53"
+  # Otherwise, a new proxy will be created on the cluster's network
+
+# DNS Configuration (optional - will be auto-configured)
+dns:
+  zone: "sweet-security-zone"  # DNS zone name (will be created if doesn't exist)
+  ttl: 300                      # DNS record TTL
