@@ -1,0 +1,182 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "apss.fullname" . }}-webhook
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "apss.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook
+spec:
+  replicas: {{ .Values.webhook.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "apss.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: webhook
+  template:
+    metadata:
+      labels:
+        {{- include "apss.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: webhook
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "apss.fullname" . }}-webhook
+      securityContext:
+        {{- toYaml .Values.global.securityContext | nindent 8 }}
+      containers:
+        - name: webhook
+          image: "{{ .Values.webhook.image.repository }}:{{ .Values.webhook.image.tag }}"
+          imagePullPolicy: {{ .Values.webhook.image.pullPolicy }}
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.webhook.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: SIDECAR_IMAGE
+              value: "{{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag }}"
+            - name: CONTROLLER_ENDPOINT
+              value: "{{ include "apss.fullname" . }}-controller.{{ .Values.namespace }}.svc.cluster.local:{{ .Values.controller.service.port }}"
+            - name: EXCLUDE_NAMESPACES
+              value: "{{ join "," .Values.webhook.excludeNamespaces }}"
+            - name: TLS_CERT_FILE
+              value: /etc/webhook/certs/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/webhook/certs/tls.key
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: {{ include "apss.fullname" . }}-webhook-certs
+      {{- with .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.global.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "apss.fullname" . }}-webhook
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "apss.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: https
+      protocol: TCP
+      name: https
+  selector:
+    {{- include "apss.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "apss.fullname" . }}-webhook
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "apss.labels" . | nindent 4 }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "apss.fullname" . }}-webhook
+  labels:
+    {{- include "apss.labels" . | nindent 4 }}
+  {{- if .Values.webhook.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Values.namespace }}/{{ include "apss.fullname" . }}-webhook-cert
+  {{- end }}
+webhooks:
+  - name: sidecar-injector.apss.invisible.tech
+    admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ include "apss.fullname" . }}-webhook
+        namespace: {{ .Values.namespace }}
+        path: /mutate
+    rules:
+      - operations:
+          - CREATE
+        apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        resources:
+          - pods
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            {{- range .Values.webhook.excludeNamespaces }}
+            - {{ . | quote }}
+            {{- end }}
+        - key: apss.invisible.tech/inject
+          operator: NotIn
+          values:
+            - "false"
+    failurePolicy: Ignore  # Don't block pod creation if webhook fails
+    sideEffects: None
+    timeoutSeconds: 10
+---
+{{- if .Values.webhook.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "apss.fullname" . }}-webhook-cert
+  namespace: {{ .Values.namespace }}
+spec:
+  secretName: {{ include "apss.fullname" . }}-webhook-certs
+  dnsNames:
+    - {{ include "apss.fullname" . }}-webhook
+    - {{ include "apss.fullname" . }}-webhook.{{ .Values.namespace }}
+    - {{ include "apss.fullname" . }}-webhook.{{ .Values.namespace }}.svc
+    - {{ include "apss.fullname" . }}-webhook.{{ .Values.namespace }}.svc.cluster.local
+  issuerRef:
+    name: {{ .Values.webhook.certManager.issuerRef.name }}
+    kind: {{ .Values.webhook.certManager.issuerRef.kind }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+  namespace: {{ .Values.namespace }}
+spec:
+  selfSigned: {}
+{{- end }}

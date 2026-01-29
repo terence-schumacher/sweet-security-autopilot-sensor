@@ -1,0 +1,130 @@
+---
+# Kubernetes Deployment for Sweet Security Proxy on GKE Autopilot
+# This can be deployed directly to GKE Autopilot clusters
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sweet-proxy
+  namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sweet-proxy-config
+  namespace: default
+data:
+  setup-proxy.sh: |
+    #!/usr/bin/env bash
+    set -e
+
+    # Sweet IP
+    TARGET_IP=18.220.208.31
+    TARGET_PORT=443
+    LOCAL_PORT=443
+
+    # Enable IPv4 forwarding
+    sysctl -w net.ipv4.ip_forward=1 > /dev/null
+
+    # Clear existing NAT rules
+    iptables -t nat -F
+    iptables -t nat -X
+
+    # Get the pod IP
+    LOCAL_IP=$(hostname -i)
+
+    # Set up DNAT: Traffic arriving at LOCAL_IP:LOCAL_PORT will be forwarded to TARGET_IP:TARGET_PORT
+    iptables -t nat -A PREROUTING -p tcp -d $LOCAL_IP --dport $LOCAL_PORT -j DNAT --to-destination $TARGET_IP:$TARGET_PORT
+    iptables -t nat -A PREROUTING -p udp -d $LOCAL_IP --dport $LOCAL_PORT -j DNAT --to-destination $TARGET_IP:$TARGET_PORT
+
+    # Set up MASQUERADE so that return traffic passes back through this host
+    iptables -t nat -A POSTROUTING -p tcp -d $TARGET_IP --dport $TARGET_PORT -j MASQUERADE
+    iptables -t nat -A POSTROUTING -p udp -d $TARGET_IP --dport $TARGET_PORT -j MASQUERADE
+
+    # Ensure FORWARD chain rules allow the forwarded traffic
+    iptables -A FORWARD -p tcp -d $TARGET_IP --dport $TARGET_PORT -j ACCEPT
+    iptables -A FORWARD -p tcp -s $TARGET_IP --sport $TARGET_PORT -j ACCEPT
+    iptables -A FORWARD -p udp -d $TARGET_IP --dport $TARGET_PORT -j ACCEPT
+    iptables -A FORWARD -p udp -s $TARGET_IP --sport $TARGET_PORT -j ACCEPT
+
+    # Keep the container running
+    exec sleep infinity
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sweet-proxy
+  namespace: default
+  labels:
+    app: sweet-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sweet-proxy
+  template:
+    metadata:
+      labels:
+        app: sweet-proxy
+    spec:
+      serviceAccountName: sweet-proxy
+      # Required for GKE Autopilot - must use privileged container for iptables
+      securityContext:
+        runAsUser: 0
+      containers:
+      - name: proxy
+        image: ubuntu:22.04
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            apt-get update && apt-get install -y iptables net-tools
+            chmod +x /scripts/setup-proxy.sh
+            /scripts/setup-proxy.sh
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - NET_ADMIN
+              - NET_RAW
+              - SYS_ADMIN
+        ports:
+        - containerPort: 443
+          protocol: TCP
+        - containerPort: 443
+          protocol: UDP
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+      volumes:
+      - name: scripts
+        configMap:
+          name: sweet-proxy-config
+          defaultMode: 0755
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sweet-proxy
+  namespace: default
+  labels:
+    app: sweet-proxy
+spec:
+  type: ClusterIP
+  ports:
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: tcp
+  - port: 443
+    targetPort: 443
+    protocol: UDP
+    name: udp
+  selector:
+    app: sweet-proxy

@@ -1,0 +1,11 @@
+# Sweet Security Batch Deployment Configuration
+# Format: CLUSTER_NAME PROJECT_ID REGION
+# One cluster per line
+# Lines starting with # are ignored
+
+# Example clusters:
+sre-771-staging invisible-sre-sandbox us-west1
+sre-771-production invisible-sre-sandbox us-west1
+sre-onboarding invisible-sre-sandbox us-west1
+
+# Add your clusters below:

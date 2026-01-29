@@ -1,0 +1,18 @@
+apiVersion: v2
+name: autopilot-security-sensor
+description: A GKE Autopilot-compatible runtime security monitoring solution
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - security
+  - gke
+  - autopilot
+  - runtime-security
+  - kubernetes
+home: https://github.com/invisible-tech/autopilot-security-sensor
+sources:
+  - https://github.com/invisible-tech/autopilot-security-sensor
+maintainers:
+  - name: SRE Team
+    email: sre@invisible.email
