@@ -11,6 +11,10 @@ WEBHOOK_IMAGE := $(REGISTRY)/apss-webhook
 GOOS ?= linux
 GOARCH ?= amd64
 CGO_ENABLED := 0
+LDFLAGS := -w -s
+ifdef VERSION
+LDFLAGS += -X github.com/invisible-tech/autopilot-security-sensor/internal/version.Version=$(VERSION)
+endif
 
 .PHONY: all build test clean docker-build docker-push deploy
 
@@ -22,17 +26,17 @@ build: build-agent build-controller build-webhook
 build-agent:
 	@echo "Building agent..."
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
-		go build -ldflags='-w -s' -o bin/apss-agent ./cmd/agent
+		go build -ldflags='$(LDFLAGS)' -o bin/apss-agent ./cmd/agent
 
 build-controller:
 	@echo "Building controller..."
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
-		go build -ldflags='-w -s' -o bin/apss-controller ./cmd/controller
+		go build -ldflags='$(LDFLAGS)' -o bin/apss-controller ./cmd/controller
 
 build-webhook:
 	@echo "Building webhook..."
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
-		go build -ldflags='-w -s' -o bin/apss-webhook ./cmd/webhook
+		go build -ldflags='$(LDFLAGS)' -o bin/apss-webhook ./cmd/webhook
 
 ## Run tests
 test:

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The deployment has been migrated from proxy VM instances to **Cloud NAT** for a more scalable and cost-effective solution.
+The deployment has been migrated from proxy VM instances to **Cloud NAT** for a more secure solution.
 
 ## What Changed
 

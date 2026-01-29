@@ -132,6 +132,10 @@ helm install apss apss/autopilot-security-sensor \
 
 See [docs/configuration.md](docs/configuration.md) for full options.
 
+## Architecture
+
+The codebase is modularized for production use: thin `cmd/*` entry points, shared `internal/config` and `internal/version`, and feature packages (`internal/detection`, `internal/controller`, `internal/server`, `internal/webhook`). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full layout and design.
+
 ## Requirements
 
 - GKE Autopilot cluster (1.27+)
