@@ -43,6 +43,14 @@ test:
 	@echo "Running tests..."
 	go test -v -race -coverprofile=coverage.out ./...
 
+## Run tests with coverage and require >= 85%
+test-coverage: coverage.out
+	@echo "Checking coverage (require >= 85%)..."
+	@go tool cover -func=coverage.out | tail -1 | awk '{gsub(/%/,""); if ($$3 < 85) { print "Coverage " $$3 "% is below 85%"; exit 1 } else { print "Coverage: " $$3 "% (>= 85%)" }}'
+
+coverage.out:
+	go test ./internal/... ./pkg/... -coverprofile=coverage.out -covermode=atomic
+
 ## Clean build artifacts
 clean:
 	rm -rf bin/
@@ -123,6 +131,7 @@ help:
 	@echo "Targets:"
 	@echo "  build              - Build all binaries"
 	@echo "  test               - Run tests"
+	@echo "  test-coverage      - Run tests with coverage (require >= 85%)"
 	@echo "  docker-build       - Build Docker images"
 	@echo "  docker-push        - Push Docker images to registry"
 	@echo "  deploy             - Deploy to current cluster"
